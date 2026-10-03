@@ -1,7 +1,4 @@
-// Merchant normalization + UPI intelligence + rules-based classification (ML-ready: every
-// result carries a confidence score; user corrections are stored as overrides and win).
-
-// [regex, canonical merchant, category, subcategory, flags]
+// Merchant normalization + UPI intelligence + rules-based classification (with learning overrides).
 export const MERCHANT_RULES = [
   [/swiggy\s*instamart|instamart/i, 'Swiggy Instamart', 'Food & Dining', 'Groceries'],
   [/swiggy|bundl tech/i, 'Swiggy', 'Food & Dining', 'Food Delivery'],
@@ -22,8 +19,8 @@ export const MERCHANT_RULES = [
   [/microsoft|adobe|google\s*(one|storage|workspace)|icloud|apple\.com\/bill|openai|chatgpt|canva|notion|github|dropbox/i, m => pick(m, { microsoft: 'Microsoft 365', adobe: 'Adobe', google: 'Google One', icloud: 'Apple iCloud', 'apple.com': 'Apple Services', openai: 'OpenAI', chatgpt: 'OpenAI', canva: 'Canva', notion: 'Notion', github: 'GitHub', dropbox: 'Dropbox' }), 'Bills & Utilities', 'Software Subscription', { subscription: true }],
   [/uber/i, 'Uber', 'Transport', 'Ride Sharing'],
   [/\bola\b|olacabs|ani technologies|rapido/i, m => /rapido/i.test(m) ? 'Rapido' : 'Ola', 'Transport', 'Ride Sharing'],
-  [/indian oil|iocl|bharat petroleum|bpcl|hpcl|hindustan petroleum|petrol|fuel|shell india|nayara/i, m => pick(m, { iocl: 'Indian Oil', 'indian oil': 'Indian Oil', bpcl: 'Bharat Petroleum', bharat: 'Bharat Petroleum', hpcl: 'HP Petrol', hindustan: 'HP Petrol', shell: 'Shell', nayara: 'Nayara' }) , 'Transport', 'Fuel'],
-  [/fastag|toll|nhai|paytm.*fastag/i, 'FASTag', 'Transport', 'Toll'],
+  [/indian oil|iocl|bharat petroleum|bpcl|hpcl|hindustan petroleum|petrol|fuel|shell india|nayara/i, m => pick(m, { iocl: 'Indian Oil', 'indian oil': 'Indian Oil', bpcl: 'Bharat Petroleum', bharat: 'Bharat Petroleum', hpcl: 'HP Petrol', hindustan: 'HP Petrol', shell: 'Shell', nayara: 'Nayara' }), 'Transport', 'Fuel'],
+  [/fastag|toll|nhai/i, 'FASTag', 'Transport', 'Toll'],
   [/metro|dmrc|mmrda|bmrcl/i, 'Metro', 'Transport', 'Metro'],
   [/irctc|indian railway/i, 'IRCTC', 'Travel', 'Travel Booking'],
   [/redbus|msrtc|ksrtc|\bbus\b/i, m => /redbus/i.test(m) ? 'redBus' : 'Bus', 'Transport', 'Bus'],
@@ -35,7 +32,7 @@ export const MERCHANT_RULES = [
   [/mahanagar gas|indraprastha gas|\bigl\b|\bmgl\b|indane|hp gas|bharatgas|gas bill/i, m => pick(m, { mahanagar: 'Mahanagar Gas', indraprastha: 'IGL', igl: 'IGL', mgl: 'Mahanagar Gas', indane: 'Indane', 'hp gas': 'HP Gas', bharatgas: 'Bharatgas' }), 'Bills & Utilities', 'Gas', { bill: true }],
   [/water bill|jal board|municipal/i, 'Water Utility', 'Bills & Utilities', 'Water', { bill: true }],
   [/airtel|jio|reliance jio|vodafone|\bvi\b|bsnl/i, m => pick(m, { airtel: 'Airtel', jio: 'Jio', vodafone: 'Vi', vi: 'Vi', bsnl: 'BSNL' }), 'Bills & Utilities', m => /fiber|broadband|xstream/i.test(m) ? 'Internet' : 'Mobile', { bill: true }],
-  [/act fibernet|hathway|tikona|excitel|broadband/i, m => pick(m, { act: 'ACT Fibernet', hathway: 'Hathway', tikona: 'Tikona', excitel: 'Excitel' }) , 'Bills & Utilities', 'Internet', { bill: true }],
+  [/act fibernet|hathway|tikona|excitel|broadband/i, m => pick(m, { act: 'ACT Fibernet', hathway: 'Hathway', tikona: 'Tikona', excitel: 'Excitel' }), 'Bills & Utilities', 'Internet', { bill: true }],
   [/tata\s*play|tatasky|dish tv|d2h|sun direct/i, m => pick(m, { tata: 'Tata Play', dish: 'Dish TV', d2h: 'd2h', sun: 'Sun Direct' }), 'Bills & Utilities', 'DTH', { bill: true }],
   [/lic\b|life insurance|hdfc life|icici pru|sbi life|max life|star health|hdfc ergo|icici lombard|policybazaar|digit insurance|acko|niva bupa|care health/i, m => pick(m, { lic: 'LIC', 'hdfc life': 'HDFC Life', 'icici pru': 'ICICI Prudential', 'sbi life': 'SBI Life', 'max life': 'Max Life', star: 'Star Health', ergo: 'HDFC ERGO', lombard: 'ICICI Lombard', policybazaar: 'PolicyBazaar', digit: 'Digit Insurance', acko: 'ACKO', niva: 'Niva Bupa', care: 'Care Health' }), 'Bills & Utilities', 'Insurance', { bill: true }],
   [/apollo|pharmeasy|1mg|netmeds|medplus|pharmacy|chemist|medical/i, m => pick(m, { apollo: 'Apollo', pharmeasy: 'PharmEasy', '1mg': 'Tata 1mg', netmeds: 'Netmeds', medplus: 'MedPlus' }), 'Health', 'Pharmacy'],
@@ -54,23 +51,15 @@ export const MERCHANT_RULES = [
   [/\brd\b|recurring deposit|rd inst/i, 'Recurring Deposit', 'Investment', 'RD', { investment: true }],
   [/\bppf\b|sukanya/i, 'PPF', 'Investment', 'Insurance Investment', { investment: true }],
 ];
-
-function pick(text, dict) {
-  const t = text.toLowerCase();
-  for (const [k, v] of Object.entries(dict)) if (t.includes(k)) return v;
-  return Object.values(dict)[0];
-}
-
+function pick(text, dict) { const t = text.toLowerCase(); for (const [k, v] of Object.entries(dict)) if (t.includes(k)) return v; return Object.values(dict)[0]; }
 const resolve = (v, m) => (typeof v === 'function' ? v(m) : v);
 
-/** UPI intelligence: extract VPA, payee name, reference, direction from HDFC/SBI narrations. */
 export function parseUPI(desc) {
   const d = desc || '';
   if (!/\bupi\b|@[a-z]{2,}/i.test(d)) return null;
-  const vpa = (d.match(/[a-z0-9._]{2,}@[a-z]{2,}/i) || [])[0] || ''; // '-' excluded: HDFC uses it as a field separator
+  const vpa = (d.match(/[a-z0-9._]{2,}@[a-z]{2,}/i) || [])[0] || '';
   const ref = (d.match(/\b(\d{12})\b/) || [])[1] || '';
   let name = '';
-  // HDFC: UPI-NAME-VPA-IFSC-REF-NOTE ; SBI: TO TRANSFER-UPI/DR/REF/NAME/BANK/VPA/NOTE ; generic: UPI/NAME
   let m = d.match(/UPI-([^-]+)-/i);
   if (m) name = m[1];
   else if ((m = d.match(/UPI\/(?:DR|CR)\/\d+\/([^\/]+)/i))) name = m[1];
@@ -95,7 +84,6 @@ export function detectPaymentMode(desc) {
   return 'Other';
 }
 
-/** Clean noisy narration into a readable merchant guess when no rule matches. */
 export function guessMerchant(desc) {
   const upi = parseUPI(desc);
   if (upi && upi.name) return upi.name;
@@ -105,10 +93,6 @@ export function guessMerchant(desc) {
   return titleCase(cleaned.split(' ').slice(0, 3).join(' ')) || 'Unknown';
 }
 
-/**
- * Classify one normalized transaction (mutates & returns it).
- * ctx: { merchantOverrides: {aliasKey: merchant}, categoryOverrides: {merchant: [cat, sub]}, selfNames: [] }
- */
 export function classify(t, ctx = {}) {
   const d = t.description || '';
   const D = d.toUpperCase();
@@ -118,7 +102,6 @@ export function classify(t, ctx = {}) {
   t.upi_id = upi?.vpa || '';
   let merchant = null, cat = null, sub = null, conf = 0.4, flags = {};
 
-  // 1) bank-level patterns (highest priority, deterministic)
   if (t.payment_mode === 'Cash' && isDebit) { merchant = 'ATM Withdrawal'; cat = 'Cash'; sub = 'ATM Withdrawal'; conf = 0.98; flags.cash = true; }
   else if (/SALARY|SAL CREDIT|\bSAL\b|PAYROLL/.test(D) && !isDebit) { cat = 'Income'; sub = 'Salary'; conf = 0.97; flags.salary = true; merchant = employerFrom(d); }
   else if (/\bINT(EREST)?\.?\s?(PD|PAID|CREDIT|CR)\b|INTEREST CREDIT|CREDIT INTEREST|SB INT/.test(D) && !isDebit) { merchant = 'Bank Interest'; cat = 'Income'; sub = 'Interest'; conf = 0.95; }
@@ -130,44 +113,30 @@ export function classify(t, ctx = {}) {
   else if (/CHARGES|CHRG|\bFEE\b|GST ON|SMS ALERT|AMC|MIN BAL|ANNUAL FEE|PENAL/.test(D) && isDebit) { merchant = 'Bank Charges'; cat = 'Finance'; sub = 'Bank Charges'; conf = 0.9; }
   else if (/\bRENT\b|NOBROKER|HOUSE RENT/.test(D) && isDebit) { merchant = 'Rent'; cat = 'Housing'; sub = 'Rent'; conf = 0.85; }
 
-  // 2) merchant rules
   if (!cat || !merchant) {
     for (const [re, m, c, s, f] of MERCHANT_RULES) {
-      if (re.test(d)) {
-        merchant = merchant || resolve(m, d);
-        if (!cat) { cat = c; sub = resolve(s, d); conf = 0.88; Object.assign(flags, f || {}); }
-        break;
-      }
+      if (re.test(d)) { merchant = merchant || resolve(m, d); if (!cat) { cat = c; sub = resolve(s, d); conf = 0.88; Object.assign(flags, f || {}); } break; }
     }
   }
   if (!merchant) merchant = guessMerchant(d);
-
-  // 3) generic fallbacks
   if (!cat) {
     if (!isDebit) { cat = 'Income'; sub = 'Other Income'; conf = 0.5; }
-    else if (t.payment_mode === 'UPI' && upi) { cat = 'Transfers'; sub = 'UPI Transfer'; conf = 0.55; } // person-to-person UPI
+    else if (t.payment_mode === 'UPI' && upi) { cat = 'Transfers'; sub = 'UPI Transfer'; conf = 0.55; }
     else if (['NEFT', 'IMPS', 'RTGS'].includes(t.payment_mode)) { cat = 'Transfers'; sub = 'Bank Transfer'; conf = 0.55; }
     else { cat = 'Other'; sub = 'Uncategorized'; conf = 0.3; }
   }
-
-  // 4) user learning — overrides always win
   const key = aliasKey(t);
   if (ctx.merchantOverrides && ctx.merchantOverrides[key]) merchant = ctx.merchantOverrides[key];
   if (ctx.categoryOverrides && ctx.categoryOverrides[merchant]) { [cat, sub] = ctx.categoryOverrides[merchant]; conf = 1; }
   if ((ctx.selfNames || []).some(n => n && D.includes(n.toUpperCase())) && ['Transfers', 'Other', 'Income'].includes(cat) && !flags.salary) { cat = 'Transfers'; sub = 'Own Account Transfer'; conf = 0.8; t.is_transfer = true; }
 
-  t.merchant = merchant;
-  t.category = cat; t.subcategory = sub; t.confidence_score = conf;
+  t.merchant = merchant; t.category = cat; t.subcategory = sub; t.confidence_score = conf;
   t.transaction_type = isDebit ? 'Debit' : 'Credit';
-  t.is_cash_withdrawal = !!flags.cash;
-  t.is_salary = !!flags.salary;
-  t.is_refund = !!flags.refund;
-  t.is_emi = !!flags.emi;
+  t.is_cash_withdrawal = !!flags.cash; t.is_salary = !!flags.salary; t.is_refund = !!flags.refund; t.is_emi = !!flags.emi;
   t.is_investment = !!flags.investment || cat === 'Investment';
   t.is_bill_payment = !!flags.bill || cat === 'Bills & Utilities';
   t.is_subscription = !!flags.subscription;
-  t.is_cc_payment = !!flags.ccPayment;
-  t.is_cc_payment_received = !!flags.ccPaymentReceived;
+  t.is_cc_payment = !!flags.ccPayment; t.is_cc_payment_received = !!flags.ccPaymentReceived;
   if (cat === 'Transfers' && sub === 'Own Account Transfer') t.is_transfer = true;
   return t;
 }
@@ -179,18 +148,14 @@ function lenderFrom(D) {
   const nice = { 'HDFC BANK': 'HDFC Bank', SBI: 'SBI', ICICI: 'ICICI Bank', AXIS: 'Axis Bank', KOTAK: 'Kotak', IDFC: 'IDFC First' }[l] || titleCase(l || '');
   return l ? `${nice} ${kind} EMI` : `${kind} EMI`;
 }
-
 function employerFrom(d) {
   const m = d.match(/(?:NEFT|IMPS|RTGS)[-\/ ]?(?:CR)?[-\/ ]?[A-Z0-9]*[-\/ ]([A-Z][A-Z &.]{3,40}?)(?:[-\/]|LTD|PVT|$)/i);
   return m ? titleCase(m[1]) + ' (Salary)' : 'Salary';
 }
-
-/** Key used to remember merchant corrections: UPI VPA if present, else cleaned narration stem. */
 export function aliasKey(t) {
   if (t.upi_id) return 'upi:' + t.upi_id;
   return 'desc:' + (t.description || '').toUpperCase().replace(/[0-9]+/g, '').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
 }
-
 export const CATEGORY_TREE = {
   'Food & Dining': ['Restaurants', 'Food Delivery', 'Groceries', 'Cafe', 'Snacks'],
   'Transport': ['Fuel', 'Metro', 'Bus', 'Taxi', 'Ride Sharing', 'Parking', 'Toll'],

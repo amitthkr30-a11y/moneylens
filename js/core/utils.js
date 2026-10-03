@@ -5,7 +5,7 @@ export const MONTHS = { jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,se
 export function parseDate(v) {
   if (v === null || v === undefined || v === '') return null;
   if (v instanceof Date && !isNaN(v)) return iso(v.getFullYear(), v.getMonth(), v.getDate());
-  if (typeof v === 'number' && v > 20000 && v < 80000) { // Excel serial
+  if (typeof v === 'number' && v > 20000 && v < 80000) {
     const d = new Date(Math.round((v - 25569) * 86400000));
     return iso(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
   }
@@ -32,6 +32,11 @@ export function parseAmount(v) {
   if (s === '' || s === '-' || s === '--') return null;
   const n = Number(s);
   return isFinite(n) ? Math.abs(n) : null;
+}
+/** Signed amount: "(3,700)" or "-3700" → -3700. */
+export function parseSigned(v) {
+  const a = parseAmount(v); if (a === null) return null;
+  return /^\s*\(|^\s*-/.test(String(v)) ? -a : a;
 }
 
 export function maskAccount(num) {
@@ -64,6 +69,7 @@ export function hashId(str) {
 export function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+
 export function addMonths(d, n) {
   const [y, m, day] = d.split('-').map(Number); const last = new Date(Date.UTC(y, m - 1 + n + 1, 0)).getUTCDate();
   return new Date(Date.UTC(y, m - 1 + n, Math.min(day, last))).toISOString().slice(0, 10);

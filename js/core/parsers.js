@@ -1,6 +1,5 @@
 // Statement parser architecture: BaseStatementParser → HDFC / SBI / Generic CSV / Excel / PDF.
-// All parsers turn a "table" (array of row arrays) or PDF text lines into RawTransaction[]:
-// { date, valueDate, description, reference, debit, credit, balance }
+// Output RawTransaction[]: { date, valueDate, description, reference, debit, credit, balance }
 import { parseDate, parseAmount } from './utils.js';
 
 export class StatementError extends Error {
@@ -38,7 +37,6 @@ const SYN = {
 };
 const norm = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 
-/** Dynamically map header cells → column indexes (exact match first, then contains). */
 export function mapColumns(header) {
   const h = header.map(norm), map = {}, used = new Set();
   for (const pass of ['exact', 'contains']) {
@@ -62,7 +60,6 @@ export function findHeaderRow(rows) {
 }
 
 export function detectBank(headerText) {
-  // Use only the statement title/header area; narrations often contain other banks' UPI handles/IFSCs.
   const t = headerText.toLowerCase();
   if (/state bank of india|\bsbi\b(?!n)/.test(t) || (t.includes('txn date') && t.includes('ref no./cheque no'))) return 'SBI';
   if (/hdfc bank/.test(t) || (t.includes('narration') && t.includes('chq./ref.no'))) return 'HDFC';
@@ -71,7 +68,6 @@ export function detectBank(headerText) {
 
 export class BaseStatementParser {
   constructor(bank) { this.bank = bank; }
-  /** @param {string[][]} rows */
   parseTable(rows) {
     const hdr = findHeaderRow(rows);
     if (!hdr) throw new StatementError('This statement format is not currently supported.', 'No header row with date/description/amount columns found');
@@ -80,7 +76,7 @@ export class BaseStatementParser {
     for (const r of rows.slice(index + 1)) {
       const date = parseDate(r[map.date]);
       const desc = (r[map.description] || '').trim();
-      if (!date) { // continuation lines (multi-line narration) — append to previous
+      if (!date) {
         if (lastTxn && desc && !/total|opening|closing|statement|page/i.test(desc)) lastTxn.description += ' ' + desc;
         continue;
       }
@@ -109,11 +105,7 @@ export class SBIStatementParser extends BaseStatementParser { constructor() { su
 export class GenericCSVParser extends BaseStatementParser { constructor() { super('Other'); } }
 export class GenericExcelParser extends BaseStatementParser { constructor() { super('Other'); } }
 
-/**
- * GenericPDFParser: works on text lines extracted by pdf.js (grouped by y-coordinate).
- * A transaction line starts with a date and ends with 1–3 amounts; the final amount is the balance.
- * Debit/credit direction is inferred from the balance movement, falling back to keywords.
- */
+/** GenericPDFParser: lines from pdf.js; debit/credit inferred from running balance. */
 export class GenericPDFParser {
   constructor(bank = 'Other') { this.bank = bank; }
   parseLines(lines) {
@@ -131,7 +123,7 @@ export class GenericPDFParser {
       if (vd) { valueDate = parseDate(vd[1]) || date; rest = rest.slice(vd[0].length); }
       const firstAmtIdx = rest.search(AMT);
       let description = rest.slice(0, firstAmtIdx).trim();
-      const vd2 = description.match(/\s(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})$/); // HDFC: Date | Narration | Ref | Value Dt | amounts
+      const vd2 = description.match(/\s(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})$/);
       if (vd2) { valueDate = parseDate(vd2[1]) || valueDate; description = description.slice(0, -vd2[0].length).trim(); }
       const refm = description.match(/\s(\d{8,22})$/); let reference = '';
       if (refm) { reference = refm[1]; description = description.slice(0, -refm[0].length).trim(); }
@@ -158,8 +150,8 @@ export function parserFor(bank, kind) {
 
 export function detectFileKind(name, firstBytes) {
   const n = name.toLowerCase();
-  if (firstBytes && firstBytes[0] === 0x25 && firstBytes[1] === 0x50 && firstBytes[2] === 0x44 && firstBytes[3] === 0x46) return 'pdf'; // %PDF
-  if (firstBytes && firstBytes[0] === 0x50 && firstBytes[1] === 0x4b) return 'xlsx'; // ZIP container
+  if (firstBytes && firstBytes[0] === 0x25 && firstBytes[1] === 0x50 && firstBytes[2] === 0x44 && firstBytes[3] === 0x46) return 'pdf';
+  if (firstBytes && firstBytes[0] === 0x50 && firstBytes[1] === 0x4b) return 'xlsx';
   if (firstBytes && firstBytes[0] === 0xd0 && firstBytes[1] === 0xcf) return 'xls';
   if (/\.(csv|txt|tsv)$/.test(n)) return 'csv';
   if (/\.xlsx?$/.test(n)) return 'xlsx';

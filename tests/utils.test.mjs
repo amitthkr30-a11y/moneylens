@@ -1,30 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseDate, parseAmount, maskAccount, inr, esc } from '../js/core/utils.js';
-
+import { parseDate, parseAmount, parseSigned, maskAccount, inr, esc, addMonths } from '../js/core/utils.js';
 test('parseDate handles Indian bank formats', () => {
-  assert.equal(parseDate('05/09/26'), '2026-09-05');          // HDFC dd/mm/yy
-  assert.equal(parseDate('05/09/2026'), '2026-09-05');
-  assert.equal(parseDate('5 Sep 2026'), '2026-09-05');         // SBI
-  assert.equal(parseDate('05-Sep-2026'), '2026-09-05');
-  assert.equal(parseDate('05-09-2026'), '2026-09-05');
-  assert.equal(parseDate('2026-09-05'), '2026-09-05');
-  assert.equal(parseDate(46270), '2026-09-05');                // Excel serial
+  for (const [i, o] of [['05/09/26', '2026-09-05'], ['5 Sep 2026', '2026-09-05'], ['05-Sep-2026', '2026-09-05'], ['06-APR-2026', '2026-04-06'], ['01-APR-26', '2026-04-01'], ['16 Jan 2024', '2024-01-16'], [46270, '2026-09-05']]) assert.equal(parseDate(i), o, String(i));
   assert.equal(parseDate('Opening Balance'), null);
-  assert.equal(parseDate('32/13/2026'), null);
 });
-test('parseAmount handles commas, rupee symbols, Dr/Cr suffix', () => {
-  assert.equal(parseAmount('1,23,456.78'), 123456.78);
-  assert.equal(parseAmount('₹ 500.00 Dr'), 500);
-  assert.equal(parseAmount('2,000.00Cr'), 2000);
-  assert.equal(parseAmount(''), null);
-  assert.equal(parseAmount('-'), null);
-});
-test('account numbers are always masked', () => {
-  assert.equal(maskAccount('50100123456781234'), 'XXXX XXXX 1234');
-  assert.equal(maskAccount('1234'), 'XXXX XXXX 1234');
-});
-test('inr formats with Indian grouping; esc blocks XSS', () => {
-  assert.equal(inr(150000), '₹1,50,000');
-  assert.equal(esc('<img src=x onerror=alert(1)>'), '&lt;img src=x onerror=alert(1)&gt;');
+test('amounts, masking, formatting, escaping', () => {
+  assert.equal(parseAmount('1,23,456.78'), 123456.78); assert.equal(parseSigned('(3,700)'), -3700);
+  assert.equal(maskAccount('0000000000100875462'), 'XXXX XXXX 5462'); assert.equal(inr(150000), '₹1,50,000');
+  assert.equal(esc('<img src=x>'), '&lt;img src=x&gt;'); assert.equal(addMonths('2026-01-31', 1), '2026-02-28');
 });

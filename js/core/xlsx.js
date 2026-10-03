@@ -1,5 +1,4 @@
-// Minimal, dependency-light XLSX reader (first worksheet → string[][]) built on JSZip.
-// Handles shared strings, inline strings, numbers, and Excel date serials (via parseDate later).
+// Minimal XLSX reader/writer built on JSZip + pdf.js line grouping helper.
 export async function readXlsx(arrayBuffer, JSZip) {
   const zip = await JSZip.loadAsync(arrayBuffer);
   const read = p => zip.file(p)?.async('string');
@@ -18,12 +17,11 @@ export async function readXlsx(arrayBuffer, JSZip) {
     for (const c of row.match(/<c [^>]*?(?:\/>|>[\s\S]*?<\/c>)/g) || []) {
       const ref = c.match(/r="([A-Z]+)\d+"/)?.[1]; const type = c.match(/t="([^"]+)"/)?.[1];
       const v = c.match(/<v>([\s\S]*?)<\/v>/)?.[1]; const is = c.match(/<is>[\s\S]*?<t[^>]*>([\s\S]*?)<\/t>/)?.[1];
-      let val = type === 's' ? shared[+v] : type === 'inlineStr' ? decode(is || '') : type === 'str' ? decode(v || '') : v ?? '';
+      const val = type === 's' ? shared[+v] : type === 'inlineStr' ? decode(is || '') : type === 'str' ? decode(v || '') : v ?? '';
       if (ref) out[colIdx(ref)] = val; else out.push(val);
     }
     rows.push(Array.from(out, x => (x === undefined ? '' : String(x).trim())));
   }
-  // numeric date serials in a date column become numbers → parseDate handles 20000–80000 range
   return rows.map(r => r.map(x => (/^\d{5}(\.\d+)?$/.test(x) && +x > 20000 && +x < 80000 ? +x : x)));
 }
 const colIdx = ref => [...ref].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
@@ -41,8 +39,6 @@ export function itemsToLines(items) {
   }
   return rows.sort((a, b) => b.y - a.y).map(r => r.parts.sort((a, b) => a.x - b.x).map(p => p.s).join(' '));
 }
-
-/** Minimal XLSX writer (one sheet per entry) — used for Excel exports. sheets: [{name, rows: any[][]}] */
 export async function writeXlsx(sheets, JSZip) {
   const zip = new JSZip(); const x = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
   const col = i => { let s = ''; i++; while (i) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = (i - m - 1) / 26; } return s; };

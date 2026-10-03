@@ -1,0 +1,21 @@
+# secrets — NEVER commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+# real statements — NEVER commit (only samples/synthetic_* are allowed)
+*.pdf
+*.xlsx
+*.xls
+!samples/synthetic_*.pdf
+!samples/synthetic_*.xlsx
+statements/
+uploads/
+# build & tooling
+node_modules/
+_site/
+coverage/
+.DS_Store
+*.log
+moneylens-backup-*.json

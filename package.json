@@ -1,0 +1,15 @@
+{
+  "name": "moneylens-india",
+  "version": "1.0.0",
+  "description": "MoneyLens India - Understand your money. Control your spending. Privacy-first personal finance app (runs fully in the browser).",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.mjs\"",
+    "lint": "node scripts/lint.mjs",
+    "check-secrets": "node scripts/check-secrets.mjs",
+    "start": "npx --yes http-server . -p 8080 -c-1",
+    "ci": "npm run lint && npm run check-secrets && npm test"
+  },
+  "license": "MIT"
+}
